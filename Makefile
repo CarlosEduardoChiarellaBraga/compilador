@@ -6,7 +6,7 @@ FLEX ?= flex
 TARGET = g-v1
 TEST_API_BIN = tests/symtab_api_test
 
-OBJS = g-v1.tab.o lex.yy.o ast.o symtab.o
+OBJS = g-v1.tab.o lex.yy.o ast.o symtab.o semantic.o
 
 .PHONY: all clean test test-valid test-invalid test-symtab test-symtab-api ast symtab
 
@@ -15,13 +15,13 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS)
 
-g-v1.tab.c g-v1.tab.h: g-v1.y ast.h symtab.h
+g-v1.tab.c g-v1.tab.h: g-v1.y ast.h symtab.h semantic.h
 	$(BISON) -d -o g-v1.tab.c g-v1.y
 
 lex.yy.c: g-v1.l g-v1.tab.h
 	$(FLEX) -o lex.yy.c g-v1.l
 
-g-v1.tab.o: g-v1.tab.c ast.h symtab.h
+g-v1.tab.o: g-v1.tab.c ast.h symtab.h semantic.h
 	$(CC) $(CFLAGS) -c g-v1.tab.c
 
 lex.yy.o: lex.yy.c g-v1.tab.h
@@ -32,6 +32,9 @@ ast.o: ast.c ast.h
 
 symtab.o: symtab.c symtab.h ast.h
 	$(CC) $(CFLAGS) -c symtab.c
+
+semantic.o: semantic.c semantic.h symtab.h ast.h
+	$(CC) $(CFLAGS) -c semantic.c
 
 $(TEST_API_BIN): tests/symtab_api_test.c symtab.o ast.o
 	$(CC) $(CFLAGS) -I. -o $@ tests/symtab_api_test.c symtab.o ast.o

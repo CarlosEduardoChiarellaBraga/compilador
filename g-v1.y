@@ -9,6 +9,7 @@
 
 #include "ast.h"
 #include "symtab.h"
+#include "semantic.h"
 
 extern int yylineno;
 extern char *yytext;
@@ -365,6 +366,12 @@ int main(int argc, char **argv) {
     fclose(yyin);
 
     if (status == 0 && ast_root != NULL) {
+        if (!semantic_check(ast_root)) {
+            ast_free(ast_root);
+            ast_root = NULL;
+            return EXIT_FAILURE;
+        }
+
         if (opt_print_ast) {
             ast_print(stdout, ast_root);
         }
