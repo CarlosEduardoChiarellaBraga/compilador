@@ -3,10 +3,5 @@ principal
 x: int;
 }
 {
-{
-y: car;
-}
-{
-;
-}
+se (1) entao x = 1;
 }

@@ -3,10 +3,6 @@ principal
 x: int;
 }
 {
-{
-y: car;
-}
-{
-;
-}
+x = 1;
+escreva x;
 }

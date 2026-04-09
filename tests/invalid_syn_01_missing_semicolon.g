@@ -1,3 +1,7 @@
-principal {
-    escreva 1
+principal
+{
+x: int;
+}
+{
+x = 1
 }

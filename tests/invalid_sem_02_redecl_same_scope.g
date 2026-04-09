@@ -1,12 +1,8 @@
 principal
 {
 x: int;
-}
-{
-{
-y: car;
+x: car;
 }
 {
 ;
-}
 }

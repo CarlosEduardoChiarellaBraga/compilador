@@ -1,4 +1,4 @@
-principal {
-    /* comentario
-    ;
-}
+principal
+{
+/* comentario
+ainda aberto

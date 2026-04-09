@@ -10,6 +10,7 @@
 #include "ast.h"
 #include "symtab.h"
 #include "semantic.h"
+#include "codegen.h"
 
 extern int yylineno;
 extern char *yytext;
@@ -19,6 +20,8 @@ extern FILE *yyin;
 ASTNode *ast_root = NULL;
 static int opt_print_ast = 0;
 static int opt_print_symtab = 0;
+static int opt_emit_code = 0;
+static const char *opt_output_path = NULL;
 
 static void yyerror(const char *s);
 static int parse_cli(int argc, char **argv, const char **input_path);
@@ -329,20 +332,32 @@ static int parse_cli(int argc, char **argv, const char **input_path) {
             opt_print_ast = 1;
         } else if (strcmp(argv[i], "--symtab") == 0) {
             opt_print_symtab = 1;
+        } else if (strcmp(argv[i], "--code") == 0 || strcmp(argv[i], "-S") == 0) {
+            opt_emit_code = 1;
+        } else if (strcmp(argv[i], "-o") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Uso: %s [--ast] [--symtab] [--code|-S] [-o arquivo.s] <arquivo.g>\n", argv[0]);
+                return 0;
+            }
+            opt_output_path = argv[++i];
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "Opcao desconhecida: %s\n", argv[i]);
             return 0;
         } else if (*input_path == NULL) {
             *input_path = argv[i];
         } else {
-            fprintf(stderr, "Uso: %s [--ast] [--symtab] <arquivo.g>\n", argv[0]);
+            fprintf(stderr, "Uso: %s [--ast] [--symtab] [--code|-S] [-o arquivo.s] <arquivo.g>\n", argv[0]);
             return 0;
         }
     }
 
     if (*input_path == NULL) {
-        fprintf(stderr, "Uso: %s [--ast] [--symtab] <arquivo.g>\n", argv[0]);
+        fprintf(stderr, "Uso: %s [--ast] [--symtab] [--code|-S] [-o arquivo.s] <arquivo.g>\n", argv[0]);
         return 0;
+    }
+
+    if (opt_output_path != NULL) {
+        opt_emit_code = 1;
     }
 
     return 1;
@@ -377,6 +392,33 @@ int main(int argc, char **argv) {
         }
         if (opt_print_symtab) {
             symtab_dump_from_ast(stdout, ast_root);
+        }
+        if (opt_emit_code) {
+            FILE *out = stdout;
+
+            if (opt_output_path != NULL) {
+                out = fopen(opt_output_path, "w");
+                if (out == NULL) {
+                    perror(opt_output_path);
+                    ast_free(ast_root);
+                    ast_root = NULL;
+                    return EXIT_FAILURE;
+                }
+            }
+
+            if (!codegen_emit(out, ast_root)) {
+                if (opt_output_path != NULL) {
+                    fclose(out);
+                }
+                ast_free(ast_root);
+                ast_root = NULL;
+                fprintf(stderr, "Falha ao gerar codigo.\n");
+                return EXIT_FAILURE;
+            }
+
+            if (opt_output_path != NULL) {
+                fclose(out);
+            }
         }
     }
 

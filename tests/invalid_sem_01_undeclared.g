@@ -3,10 +3,5 @@ principal
 x: int;
 }
 {
-{
-y: car;
-}
-{
-;
-}
+y = 1;
 }

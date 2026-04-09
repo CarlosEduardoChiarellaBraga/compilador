@@ -1,4 +1,5 @@
-principal {
-    escreva "oi
-mundo";
+principal
+{
+escreva "abc
+def";
 }

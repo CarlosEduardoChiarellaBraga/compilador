@@ -1,41 +1,48 @@
-#include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "symtab.h"
 
 int main(void) {
     SymbolTableStack stack;
-    SymbolEntry *entry;
+    SymbolEntry *e;
 
     symtab_init(&stack);
-    assert(symtab_lookup(&stack, "x") == NULL);
+    if (stack.top != NULL || stack.size != 0) {
+        fprintf(stderr, "symtab_init falhou\n");
+        return 1;
+    }
 
-    assert(symtab_push_scope(&stack) != NULL);
-    entry = symtab_insert(&stack, "x", AST_TYPE_INT, 1);
-    assert(entry != NULL);
-    assert(symtab_lookup(&stack, "x") == entry);
-    assert(symtab_lookup_current(&stack, "x") == entry);
+    symtab_push_scope(&stack);
+    if (symtab_insert(&stack, "x", AST_TYPE_INT, 1) == NULL) {
+        fprintf(stderr, "insert x falhou\n");
+        return 2;
+    }
+    if (symtab_insert(&stack, "x", AST_TYPE_CAR, 2) != NULL) {
+        fprintf(stderr, "redecl no mesmo escopo passou\n");
+        return 3;
+    }
 
-    assert(symtab_push_scope(&stack) != NULL);
-    assert(symtab_lookup(&stack, "x") != NULL);
+    symtab_push_scope(&stack);
+    if (symtab_insert(&stack, "x", AST_TYPE_CAR, 3) == NULL) {
+        fprintf(stderr, "shadowing falhou\n");
+        return 4;
+    }
 
-    entry = symtab_insert(&stack, "y", AST_TYPE_CAR, 2);
-    assert(entry != NULL);
-    entry = symtab_insert(&stack, "x", AST_TYPE_CAR, 3);
-    assert(entry != NULL);
-    assert(symtab_lookup_current(&stack, "x")->type == AST_TYPE_CAR);
-    assert(symtab_lookup(&stack, "x")->type == AST_TYPE_CAR);
+    e = symtab_lookup(&stack, "x");
+    if (e == NULL || e->type != AST_TYPE_CAR || e->decl_line != 3) {
+        fprintf(stderr, "lookup topo falhou\n");
+        return 5;
+    }
 
-    assert(symtab_pop_scope(&stack) == 1);
-    assert(symtab_lookup(&stack, "y") == NULL);
-    assert(symtab_lookup(&stack, "x") != NULL);
-    assert(symtab_lookup(&stack, "x")->type == AST_TYPE_INT);
-
-    assert(symtab_pop_scope(&stack) == 1);
-    assert(symtab_lookup(&stack, "x") == NULL);
-    assert(symtab_pop_scope(&stack) == 0);
+    symtab_pop_scope(&stack);
+    e = symtab_lookup(&stack, "x");
+    if (e == NULL || e->type != AST_TYPE_INT || e->decl_line != 1) {
+        fprintf(stderr, "lookup apos pop falhou\n");
+        return 6;
+    }
 
     symtab_destroy(&stack);
-    puts("OK");
     return 0;
 }

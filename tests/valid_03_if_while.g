@@ -1,6 +1,13 @@
-principal {
-    x: int;
-} {
-    x = 1;
-    se (x < 10) entao enquanto (x < 5) x = x + 1; fimse
+principal
+{
+x: int;
+}
+{
+x = 0;
+enquanto (x < 3) {
+escreva x;
+x = x + 1;
+}
+se (x == 3) entao escreva "ok"; senao escreva "no"; fimse
+novalinha;
 }
