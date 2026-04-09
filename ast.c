@@ -12,7 +12,7 @@ static void *xmalloc(size_t size) {
     return ptr;
 }
 
-static char *xstrdup(const char *src) {
+static char *xstrdup_ast(const char *src) {
     size_t len;
     char *dst;
 
@@ -28,11 +28,11 @@ static char *xstrdup(const char *src) {
 
 static ASTNode *ast_new(ASTKind kind, int line, const char *lexeme,
                         ASTNode *child1, ASTNode *child2, ASTNode *child3) {
-    ASTNode *node = xmalloc(sizeof(*node));
+    ASTNode *node = (ASTNode *)xmalloc(sizeof(*node));
     node->kind = kind;
     node->line = line;
     node->data_type = AST_TYPE_INVALID;
-    node->lexeme = xstrdup(lexeme);
+    node->lexeme = xstrdup_ast(lexeme);
     node->child1 = child1;
     node->child2 = child2;
     node->child3 = child3;
@@ -132,6 +132,7 @@ ASTNode *ast_build_decl_list(ASTNode *id_list, ASTDataType type) {
         ASTNode *next = curr->next;
         ASTNode *decl = ast_make_decl(curr->line, curr->lexeme, type);
         decls = ast_append(decls, decl);
+
         curr->next = NULL;
         ast_free(curr);
         curr = next;
@@ -183,7 +184,7 @@ static void ast_print_node(FILE *out, const ASTNode *node, int indent) {
 
     switch (node->kind) {
         case AST_PROGRAM:
-            fprintf(out, "PROGRAM line=%d name=%s\n", node->line, node->lexeme ? node->lexeme : "principal");
+            fprintf(out, "PROGRAM line=%d\n", node->line);
             ast_print_node(out, node->child1, indent + 1);
             break;
 
@@ -250,30 +251,42 @@ static void ast_print_node(FILE *out, const ASTNode *node, int indent) {
             break;
 
         case AST_BINARY_OP:
-            fprintf(out, "BINARY_OP line=%d op=%s\n", node->line, node->lexeme ? node->lexeme : "<op>");
+            fprintf(out, "BINARY_OP line=%d op=%s\n",
+                    node->line,
+                    node->lexeme ? node->lexeme : "<op>");
             ast_print_node(out, node->child1, indent + 1);
             ast_print_node(out, node->child2, indent + 1);
             break;
 
         case AST_UNARY_OP:
-            fprintf(out, "UNARY_OP line=%d op=%s\n", node->line, node->lexeme ? node->lexeme : "<op>");
+            fprintf(out, "UNARY_OP line=%d op=%s\n",
+                    node->line,
+                    node->lexeme ? node->lexeme : "<op>");
             ast_print_node(out, node->child1, indent + 1);
             break;
 
         case AST_IDENT:
-            fprintf(out, "IDENT line=%d name=%s\n", node->line, node->lexeme ? node->lexeme : "<id>");
+            fprintf(out, "IDENT line=%d name=%s\n",
+                    node->line,
+                    node->lexeme ? node->lexeme : "<id>");
             break;
 
         case AST_INT_CONST:
-            fprintf(out, "INT_CONST line=%d value=%s\n", node->line, node->lexeme ? node->lexeme : "0");
+            fprintf(out, "INT_CONST line=%d value=%s\n",
+                    node->line,
+                    node->lexeme ? node->lexeme : "0");
             break;
 
         case AST_CHAR_CONST:
-            fprintf(out, "CHAR_CONST line=%d value=%s\n", node->line, node->lexeme ? node->lexeme : "''");
+            fprintf(out, "CHAR_CONST line=%d value=%s\n",
+                    node->line,
+                    node->lexeme ? node->lexeme : "''");
             break;
 
         case AST_STRING_LITERAL:
-            fprintf(out, "STRING_LITERAL line=%d value=%s\n", node->line, node->lexeme ? node->lexeme : "\"\"");
+            fprintf(out, "STRING_LITERAL line=%d value=%s\n",
+                    node->line,
+                    node->lexeme ? node->lexeme : "\"\"");
             break;
     }
 }

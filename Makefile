@@ -1,80 +1,100 @@
-CC      ?= cc
-BISON   ?= bison
-FLEX    ?= flex
-CFLAGS  ?= -Wall -Wextra -std=c11
+CC ?= cc
+CFLAGS ?= -Wall -Wextra -std=c11
+BISON ?= bison
+FLEX ?= flex
 
-TARGET  = g-v1
-PARSER_C = g-v1.tab.c
-PARSER_H = g-v1.tab.h
-LEX_C    = lex.yy.c
-AST_OBJ  = ast.o
+TARGET = g-v1
+TEST_API_BIN = tests/symtab_api_test
 
-VALID_TESTS   := $(sort $(wildcard tests/valid_*.g))
-INVALID_TESTS := $(sort $(wildcard tests/invalid_*.g))
+OBJS = g-v1.tab.o lex.yy.o ast.o symtab.o
 
-.PHONY: all clean test test-valid test-invalid ast
+.PHONY: all clean test test-valid test-invalid test-symtab test-symtab-api ast symtab
 
 all: $(TARGET)
 
-$(PARSER_C) $(PARSER_H): g-v1.y ast.h
-	$(BISON) -d -o $(PARSER_C) g-v1.y
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS)
 
-$(LEX_C): g-v1.l $(PARSER_H)
-	$(FLEX) -o $(LEX_C) g-v1.l
+g-v1.tab.c g-v1.tab.h: g-v1.y ast.h symtab.h
+	$(BISON) -d -o g-v1.tab.c g-v1.y
 
-$(AST_OBJ): ast.c ast.h
+lex.yy.c: g-v1.l g-v1.tab.h
+	$(FLEX) -o lex.yy.c g-v1.l
+
+g-v1.tab.o: g-v1.tab.c ast.h symtab.h
+	$(CC) $(CFLAGS) -c g-v1.tab.c
+
+lex.yy.o: lex.yy.c g-v1.tab.h
+	$(CC) $(CFLAGS) -c lex.yy.c
+
+ast.o: ast.c ast.h
 	$(CC) $(CFLAGS) -c ast.c
 
-$(TARGET): $(PARSER_C) $(LEX_C) $(AST_OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(PARSER_C) $(LEX_C) $(AST_OBJ)
+symtab.o: symtab.c symtab.h ast.h
+	$(CC) $(CFLAGS) -c symtab.c
+
+$(TEST_API_BIN): tests/symtab_api_test.c symtab.o ast.o
+	$(CC) $(CFLAGS) -I. -o $@ tests/symtab_api_test.c symtab.o ast.o
 
 ast: $(TARGET)
-	./$(TARGET) --ast tests/ast_demo.g
+	./$(TARGET) --ast tests/valid_02_nested_scopes.g
 
-test: test-valid test-invalid
+symtab: $(TARGET)
+	./$(TARGET) --symtab tests/symtab_01_nested.g
+
+test: test-valid test-invalid test-symtab test-symtab-api
 
 test-valid: $(TARGET)
 	@set -e; \
-	passed=0; total=0; \
-	for f in $(VALID_TESTS); do \
-		total=$$((total + 1)); \
+	for f in tests/valid_*.g; do \
 		printf "[VALID]   %s ... " "$$f"; \
-		if out=$$(./$(TARGET) "$$f" 2>&1); then \
-			if [ -z "$$out" ]; then \
-				echo "OK"; \
-				passed=$$((passed + 1)); \
-			else \
-				echo "FAIL (deveria não imprimir nada)"; \
-				printf "%s\n" "$$out"; \
-				exit 1; \
-			fi; \
-		else \
+		out=$$(./$(TARGET) "$$f"); \
+		if [ -n "$$out" ]; then \
 			echo "FAIL"; \
-			printf "%s\n" "$$out"; \
+			echo "$$out"; \
 			exit 1; \
 		fi; \
-	done; \
-	echo "Validos: $$passed/$$total passaram."
+		echo "OK"; \
+	done
 
 test-invalid: $(TARGET)
 	@set -e; \
-	passed=0; total=0; \
-	for f in $(INVALID_TESTS); do \
-		total=$$((total + 1)); \
+	for f in tests/invalid_*.g; do \
+		exp="tests/expected/$$(basename $$f .g).out"; \
 		printf "[INVALID] %s ... " "$$f"; \
-		expected=$$(cat "$${f%.g}.expected"); \
 		out=$$(./$(TARGET) "$$f" 2>&1 || true); \
-		if [ "$$out" = "$$expected" ]; then \
-			echo "OK"; \
-			passed=$$((passed + 1)); \
-		else \
+		expected=$$(cat "$$exp"); \
+		if [ "$$out" != "$$expected" ]; then \
 			echo "FAIL"; \
 			echo "Esperado: $$expected"; \
 			echo "Obtido:   $$out"; \
 			exit 1; \
 		fi; \
-	done; \
-	echo "Invalidos: $$passed/$$total passaram."
+		echo "OK"; \
+	done
+
+test-symtab: $(TARGET)
+	@set -e; \
+	for f in tests/symtab_*.g; do \
+		exp="tests/expected/$$(basename $$f .g).out"; \
+		printf "[SYMTAB]  %s ... " "$$f"; \
+		out=$$(./$(TARGET) --symtab "$$f"); \
+		expected=$$(cat "$$exp"); \
+		if [ "$$out" != "$$expected" ]; then \
+			echo "FAIL"; \
+			echo "Esperado:"; \
+			printf "%s\n" "$$expected"; \
+			echo "Obtido:"; \
+			printf "%s\n" "$$out"; \
+			exit 1; \
+		fi; \
+		echo "OK"; \
+	done
+
+test-symtab-api: $(TEST_API_BIN)
+	@printf "[API]     tests/symtab_api_test.c ... "
+	@./$(TEST_API_BIN)
+	@echo "OK"
 
 clean:
-	rm -f $(TARGET) $(PARSER_C) $(PARSER_H) $(LEX_C) $(AST_OBJ)
+	rm -f $(TARGET) $(OBJS) g-v1.tab.c g-v1.tab.h lex.yy.c $(TEST_API_BIN)

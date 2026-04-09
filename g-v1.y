@@ -8,15 +8,19 @@
 #include <string.h>
 
 #include "ast.h"
+#include "symtab.h"
 
 extern int yylineno;
 extern char *yytext;
 extern int yylex(void);
 extern FILE *yyin;
+
 ASTNode *ast_root = NULL;
-static int g_print_ast = 0;
+static int opt_print_ast = 0;
+static int opt_print_symtab = 0;
 
 static void yyerror(const char *s);
+static int parse_cli(int argc, char **argv, const char **input_path);
 %}
 
 %define parse.error verbose
@@ -25,7 +29,7 @@ static void yyerror(const char *s);
 %union {
     char *str;
     ASTNode *node;
-    int ival;
+    int type_code;
 }
 
 %token PRINCIPAL INT CAR LEIA ESCREVA NOVALINHA
@@ -33,9 +37,9 @@ static void yyerror(const char *s);
 %token OU E IGUAL DIFERENTE MAIORIGUAL MENORIGUAL
 %token <str> IDENTIFICADOR CADEIACARACTERES CARCONST INTCONST
 
-%type <node> Programa DeclPrograma Bloco VarSection ListaDeclVar VarDecl IdList ListaComando Comando
+%type <node> Programa DeclPrograma Bloco VarSection ListaDeclVar IdList ListaComando Comando
 %type <node> Expr OrExpr AndExpr EqExpr DesigExpr AddExpr MulExpr UnExpr PrimExpr
-%type <ival> Tipo
+%type <type_code> Tipo
 
 %start Programa
 
@@ -63,7 +67,7 @@ Bloco
       }
     | VarSection '{' ListaComando '}'
       {
-          $$ = ast_make_block($1, $3, @2.first_line);
+          $$ = ast_make_block($1, $3, @1.first_line);
       }
     ;
 
@@ -75,20 +79,13 @@ VarSection
     ;
 
 ListaDeclVar
-    : VarDecl
-      {
-          $$ = $1;
-      }
-    | ListaDeclVar VarDecl
-      {
-          $$ = ast_append($1, $2);
-      }
-    ;
-
-VarDecl
     : IdList ':' Tipo ';'
       {
           $$ = ast_build_decl_list($1, (ASTDataType)$3);
+      }
+    | IdList ':' Tipo ';' ListaDeclVar
+      {
+          $$ = ast_append(ast_build_decl_list($1, (ASTDataType)$3), $5);
       }
     ;
 
@@ -148,8 +145,8 @@ Comando
       }
     | ESCREVA CADEIACARACTERES ';'
       {
-          ASTNode *s = ast_make_string_literal($2, @2.first_line);
-          $$ = ast_make_write(s, @1.first_line);
+          ASTNode *lit = ast_make_string_literal($2, @2.first_line);
+          $$ = ast_make_write(lit, @1.first_line);
           free($2);
       }
     | NOVALINHA ';'
@@ -318,23 +315,43 @@ PrimExpr
 
 static void yyerror(const char *s) {
     (void)s;
-    fprintf(stdout, "ERRO: ERRO SINTATICO %d\n", yylineno);
+    printf("ERRO: ERRO SINTATICO %d\n", yylineno);
+    exit(EXIT_FAILURE);
 }
 
-static void usage(const char *progname) {
-    fprintf(stderr, "Uso: %s [--ast] arquivo.g\n", progname);
+static int parse_cli(int argc, char **argv, const char **input_path) {
+    int i;
+
+    *input_path = NULL;
+    for (i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--ast") == 0) {
+            opt_print_ast = 1;
+        } else if (strcmp(argv[i], "--symtab") == 0) {
+            opt_print_symtab = 1;
+        } else if (argv[i][0] == '-') {
+            fprintf(stderr, "Opcao desconhecida: %s\n", argv[i]);
+            return 0;
+        } else if (*input_path == NULL) {
+            *input_path = argv[i];
+        } else {
+            fprintf(stderr, "Uso: %s [--ast] [--symtab] <arquivo.g>\n", argv[0]);
+            return 0;
+        }
+    }
+
+    if (*input_path == NULL) {
+        fprintf(stderr, "Uso: %s [--ast] [--symtab] <arquivo.g>\n", argv[0]);
+        return 0;
+    }
+
+    return 1;
 }
 
 int main(int argc, char **argv) {
     const char *input_path = NULL;
+    int status;
 
-    if (argc == 2) {
-        input_path = argv[1];
-    } else if (argc == 3 && strcmp(argv[1], "--ast") == 0) {
-        g_print_ast = 1;
-        input_path = argv[2];
-    } else {
-        usage(argv[0]);
+    if (!parse_cli(argc, argv, &input_path)) {
         return EXIT_FAILURE;
     }
 
@@ -344,16 +361,19 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    if (yyparse() == 0) {
-        if (g_print_ast && ast_root != NULL) {
+    status = yyparse();
+    fclose(yyin);
+
+    if (status == 0 && ast_root != NULL) {
+        if (opt_print_ast) {
             ast_print(stdout, ast_root);
         }
-        ast_free(ast_root);
-        fclose(yyin);
-        return EXIT_SUCCESS;
+        if (opt_print_symtab) {
+            symtab_dump_from_ast(stdout, ast_root);
+        }
     }
 
     ast_free(ast_root);
-    fclose(yyin);
-    return EXIT_FAILURE;
+    ast_root = NULL;
+    return status;
 }
